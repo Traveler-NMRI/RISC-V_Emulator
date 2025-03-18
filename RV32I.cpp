@@ -123,12 +123,120 @@ bool Instruction_Execution(){
         uncompressed_opcode=(op4<<24)+(op3<<16)+(op2<<8)+opcode;
         if((uncompressed_opcode & 0x7F)==0x37){//lui rd,imm
             uint32_t imm=(uncompressed_opcode & 0xFFFFF000);
-            unsigned char rd=(uncompressed_opcode & 0xF80) >> 7;
+            uint8_t rd=(uncompressed_opcode & 0xF80) >> 7;
             if(rd!=0){
                 x_reg[rd]=imm;
             }
-            printf("lui x%d,0x%08X\n",rd,imm);
+            printf("lui x%d,0x%05X\n",rd,imm>>12);
             return true;
+        }else if((uncompressed_opcode & 0x7F)==0x17){//auipc rd,imm
+            uint32_t imm=(uncompressed_opcode & 0xFFFFF000);
+            uint8_t rd=(uncompressed_opcode & 0xF80) >> 7;
+            if(rd!=0){
+                x_reg[rd]=imm+(pc-4);
+            }
+            printf("auipc x%d,0x%05X\n",rd,imm>>12);
+            return true;
+        }else if((uncompressed_opcode & 0x7F)==0x13){
+            uint8_t func3=(uncompressed_opcode & 0x7000)>>12;
+            uint8_t rd=(uncompressed_opcode & 0xF80) >> 7;
+            uint8_t rs1=(uncompressed_opcode & 0xF8000) >> 15;
+            uint16_t imm=(uncompressed_opcode & 0xFFF00000)>>20;
+            uint8_t shamt=(uncompressed_opcode & 0x1F00000)>>20;
+            if(func3==0){//addi rd,rs1,imm
+                if(imm>=0x800){
+                    if(rd!=0){
+                        x_reg[rd]=x_reg[rs1]-(0x800-(imm&0x7FF));
+                    }
+                    printf("addi x%d,x%d,-%03X\n",rd,rs1,(0x800-(imm&0x7FF)));
+                }else{
+                    if(rd!=0){
+                        x_reg[rd]=x_reg[rs1]+imm;
+                        printf("addi x%d,x%d,%03X\n",rd,rs1,imm);
+                    }
+                }
+                return true;
+            }else if(func3==0x02){//slti rd,rs1,imm
+                if(imm>=0x800){
+                    if(rd!=0){
+                        x_reg[rd] = (int32_t) x_reg[rs1] < (int16_t) (imm&0x7FF)-0x800 ? 1 : 0;
+                    }
+                    printf("slti x%d,x%d,-%03X\n",rd,rs1,(0x800-(imm&0x7FF)));
+                }else{
+                    if(rd!=0){
+                        x_reg[rd] = (int32_t) x_reg[rs1] < (int16_t) imm ? 1 : 0;
+                        printf("slti x%d,x%d,%03X\n",rd,rs1,imm);
+                    }
+                }
+                return true;
+            }else if(func3==0x03){//sltiu rd,rs1,imm
+                if(rd!=0){
+                        x_reg[rd] = x_reg[rs1] < imm ? 1 : 0;
+                        printf("sltiu x%d,x%d,%03X\n",rd,rs1,imm);
+                }
+                return true;
+            }else if(func3==0x04){//xori rd,rs1,imm
+                if(rd!=0){
+                        x_reg[rd] = x_reg[rs1] ^ imm;
+                        printf("xori x%d,x%d,%03X\n",rd,rs1,imm);
+                }
+                return true;
+            }else if(func3==0x06){//ori rd,rs1,imm
+                if(rd!=0){
+                        x_reg[rd] = x_reg[rs1] | imm;
+                        printf("ori x%d,x%d,%03X\n",rd,rs1,imm);
+                }
+                return true;
+            }else if(func3==0x07){//andi rd,rs1,imm
+                if(rd!=0){
+                        x_reg[rd] = x_reg[rs1] & imm;
+                        printf("andi x%d,x%d,%03X\n",rd,rs1,imm);
+                }
+                return true;
+            }else if(func3==0x01){//slli rd,rs1,imm
+                if(rd!=0){
+                        x_reg[rd] = x_reg[rs1] << shamt;
+                        printf("slli x%d,x%d,%02X\n",rd,rs1,shamt);
+                }
+                return true;
+            }else if((func3==0x05) && !((uncompressed_opcode & 0x40000000)>>30)){//srli rd,rs1,imm
+                if(rd!=0){
+                        x_reg[rd] = x_reg[rs1] >> shamt;
+                        printf("srli x%d,x%d,%02X\n",rd,rs1,shamt);
+                }
+                return true;
+            }else if((func3==0x05) && ((uncompressed_opcode & 0x40000000)>>30)){//srai rd,rs1,imm
+                if(rd!=0){
+                        x_reg[rd] = (int32_t)((int32_t)x_reg[rs1] >> shamt);
+                        printf("srai x%d,x%d,%02X\n",rd,rs1,shamt);
+                }
+                return true;
+            }
+        }else if((uncompressed_opcode & 0x7F)==0x33){
+            uint8_t rd=(uncompressed_opcode & 0xF80) >> 7;
+            uint8_t rs1=(uncompressed_opcode & 0xF8000) >> 15;
+            uint8_t rs2=(uncompressed_opcode & 0x1F00000) >> 20;
+            uint8_t func3=(uncompressed_opcode & 0x7000) >> 12;
+            bool su=(uncompressed_opcode & 0x40000000) >> 30;
+            if(func3==0 && !su){//add rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd]=x_reg[rs1]+x_reg[rs2];
+                }
+                printf("add x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==0 && su){//sub rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd]=x_reg[rs1]-x_reg[rs2];
+                }
+                printf("sub x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==1){//sll rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd]=x_reg[rs1] << (uint8_t)(x_reg[rs2] & 0x1F);
+                }
+                printf("sll x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }
         }
         printf("[Application]Unknown non-compressed instruction 0x%08X at 0x%08X\n",uncompressed_opcode,pc-4);
     }else{//RV32C 16bit
