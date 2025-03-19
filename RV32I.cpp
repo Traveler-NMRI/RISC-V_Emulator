@@ -3,6 +3,7 @@
 #include <Windows.h>
 bool Instruction_Execution();
 unsigned char fetch8();
+void release_mem();
 #define MEMSIZE 16*1024*1024
 #define RISCV_SUPPORT "RV32I (MAFC will be supported in the future)"
 uint32_t x_reg[32];
@@ -80,11 +81,7 @@ unsigned int main(){
     DWORD bytesread;
     if(!ReadFile(hFile,(void*)(((uintptr_t)memory)+loadaddr_dec),fileSize.LowPart,&bytesread,nullptr)){
         printf("[Application]%d byte(s) failed to load into memory. Error code:%d\n",bytesread,GetLastError());
-        if(VirtualFree(memory,0,MEM_RELEASE) == 0){
-            printf("[Application]Memory release failed. Error code:%d\n",GetLastError());
-            return 1;
-        }
-        printf("[Application]Memory released successfully.\n");
+        release_mem();
         CloseHandle(hFile);
     }
     printf("[Application]%d byte(s) loaded successfully.\n",bytesread);
@@ -105,11 +102,7 @@ unsigned int main(){
             break;
         }
     }
-    if(VirtualFree(memory,0,MEM_RELEASE) == 0){
-        printf("[Application]Memory release failed. Error code:%d\n",GetLastError());
-        return 1;
-    }
-    printf("[Application]Memory released successfully.\n");
+    release_mem();
     return 0;
 }
 bool Instruction_Execution(){
@@ -278,5 +271,18 @@ unsigned char fetch8(){
     unsigned char fetch;
     fetch=*(unsigned char*)(((uintptr_t)memory)+pc);
     pc+=1;
+    if (pc > MEMSIZE) {
+        printf("[Application]Memory access error: PC out of bounds (0x%08X)\n", pc);
+        release_mem();
+        exit(1);
+    }
     return fetch;
+}
+void release_mem(){
+    if(VirtualFree(memory,0,MEM_RELEASE) == 0){
+        printf("[Application]Memory release failed. Error code:%d\n",GetLastError());
+        return;
+    }
+    printf("[Application]Memory released successfully.\n");
+    return;
 }
