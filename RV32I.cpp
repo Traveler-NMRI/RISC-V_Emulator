@@ -268,15 +268,12 @@ bool Instruction_Execution(){
     return false;
 }
 unsigned char fetch8(){
-    unsigned char fetch;
-    fetch=*(unsigned char*)(((uintptr_t)memory)+pc);
-    pc+=1;
-    if (pc > MEMSIZE) {
+    if (pc >= MEMSIZE) {
         printf("[Application]Memory access error: PC out of bounds (0x%08X)\n", pc);
         release_mem();
         exit(1);
     }
-    return fetch;
+    return *((unsigned char*)memory + pc++);
 }
 void release_mem(){
     if(VirtualFree(memory,0,MEM_RELEASE) == 0){
