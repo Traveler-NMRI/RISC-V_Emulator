@@ -141,37 +141,23 @@ bool Instruction_Execution(){
             uint8_t func3=(uncompressed_opcode & 0x7000)>>12;
             uint8_t rd=(uncompressed_opcode & 0xF80) >> 7;
             uint8_t rs1=(uncompressed_opcode & 0xF8000) >> 15;
-            uint16_t imm=(uncompressed_opcode & 0xFFF00000)>>20;
+            int32_t imm = (int32_t)(((int32_t)uncompressed_opcode >> 20));
             uint8_t shamt=(uncompressed_opcode & 0x1F00000)>>20;
             if(func3==0){//addi rd,rs1,imm
-                if(imm>=0x800){
-                    if(rd!=0){
-                        x_reg[rd]=x_reg[rs1]-(0x800-(imm&0x7FF));
-                    }
-                    printf("addi x%d,x%d,-%03X\n",rd,rs1,(0x800-(imm&0x7FF)));
-                }else{
-                    if(rd!=0){
-                        x_reg[rd]=x_reg[rs1]+imm;
-                        printf("addi x%d,x%d,%03X\n",rd,rs1,imm);
-                    }
-                }
+                if(rd != 0){
+                    x_reg[rd] = x_reg[rs1] + imm;
+                    printf("addi x%d,x%d,%d\n", rd, rs1, imm);
+                }               
                 return true;
             }else if(func3==0x02){//slti rd,rs1,imm
-                if(imm>=0x800){
-                    if(rd!=0){
-                        x_reg[rd] = (int32_t) x_reg[rs1] < (int16_t) (imm&0x7FF)-0x800 ? 1 : 0;
-                    }
-                    printf("slti x%d,x%d,-%03X\n",rd,rs1,(0x800-(imm&0x7FF)));
-                }else{
-                    if(rd!=0){
-                        x_reg[rd] = (int32_t) x_reg[rs1] < (int16_t) imm ? 1 : 0;
-                        printf("slti x%d,x%d,%03X\n",rd,rs1,imm);
-                    }
+                if(rd!=0){
+                    x_reg[rd] = (int32_t)x_reg[rs1] < imm ? 1 : 0;
                 }
+                printf("slti x%d, x%d, %d\n", rd, rs1, imm);
                 return true;
             }else if(func3==0x03){//sltiu rd,rs1,imm
                 if(rd!=0){
-                        x_reg[rd] = x_reg[rs1] < imm ? 1 : 0;
+                        x_reg[rd] = x_reg[rs1] < (uint32_t)imm ? 1 : 0;
                         printf("sltiu x%d,x%d,%03X\n",rd,rs1,imm);
                 }
                 return true;
@@ -196,19 +182,19 @@ bool Instruction_Execution(){
             }else if(func3==0x01){//slli rd,rs1,imm
                 if(rd!=0){
                         x_reg[rd] = x_reg[rs1] << shamt;
-                        printf("slli x%d,x%d,%02X\n",rd,rs1,shamt);
+                        printf("slli x%d,x%d,%d\n",rd,rs1,shamt);
                 }
                 return true;
             }else if((func3==0x05) && !((uncompressed_opcode & 0x40000000)>>30)){//srli rd,rs1,imm
                 if(rd!=0){
                         x_reg[rd] = x_reg[rs1] >> shamt;
-                        printf("srli x%d,x%d,%02X\n",rd,rs1,shamt);
+                        printf("srli x%d,x%d,%d\n",rd,rs1,shamt);
                 }
                 return true;
             }else if((func3==0x05) && ((uncompressed_opcode & 0x40000000)>>30)){//srai rd,rs1,imm
                 if(rd!=0){
                         x_reg[rd] = (int32_t)((int32_t)x_reg[rs1] >> shamt);
-                        printf("srai x%d,x%d,%02X\n",rd,rs1,shamt);
+                        printf("srai x%d,x%d,%d\n",rd,rs1,shamt);
                 }
                 return true;
             }
@@ -235,6 +221,48 @@ bool Instruction_Execution(){
                     x_reg[rd]=x_reg[rs1] << (uint8_t)(x_reg[rs2] & 0x1F);
                 }
                 printf("sll x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==2){//slt rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd] = (int32_t)x_reg[rs1] < (int32_t)x_reg[rs2] ? 1 : 0;
+                }
+                printf("slt x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==3){//sltu rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd] = x_reg[rs1] < x_reg[rs2] ? 1 : 0;
+                }
+                printf("sltu x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==4){//xor rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd] = x_reg[rs1] ^ x_reg[rs2];
+                }
+                printf("xor x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==5 && !su){//srl rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd] = x_reg[rs1] >> (uint8_t)(x_reg[rs2] & 0x1F);
+                }
+                printf("srl x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==5 && su){//sra rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd] = (int32_t)((int32_t)x_reg[rs1] >> (uint8_t)(x_reg[rs2] & 0x1F));
+                }
+                printf("sra x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==6){//or rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd] = x_reg[rs1] | x_reg[rs2];
+                }
+                printf("or x%d,x%d,x%d\n",rd,rs1,rs2);
+                return true;
+            }else if(func3==7){//and rd,rs1,rs2
+                if(rd!=0){
+                    x_reg[rd] = x_reg[rs1] & x_reg[rs2];
+                }
+                printf("and x%d,x%d,x%d\n",rd,rs1,rs2);
                 return true;
             }
         }
